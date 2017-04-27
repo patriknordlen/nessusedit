@@ -2,6 +2,9 @@ from collections import defaultdict
 from prettytable import PrettyTable, ALL
 import readchar
 import lxml.etree as le
+from optparse import OptionParser
+from pprint import pprint
+import sys
 
 class NessusFile(object):
     def __init__(self, nessusfile):
@@ -21,13 +24,23 @@ class NessusFile(object):
 
         return sorted(vulns.items(), key=lambda(k,v): v, reverse=True)
 
-    def printvulns(self, filter=None):
+    def printsummary(self, filter=None):
         t = PrettyTable(['pluginName','count'])
 
         for k,v in self.vulns(filter):
             t.add_row([k,v])
 
         print t
+
+    def printvuln(self, elem):
+        if self.doc.getpath(elem) == '/ReportItem':
+            return False
+
+        t = PrettyTable(['host','port','pluginName','severity','plugin_output'])
+        t.add_row([elem.getparent().attrib['name'], elem.attrib['port'], elem.attrib['pluginName'], elem.attrib['severity'], elem.find('plugin_output').text if elem.find('plugin_output') is not None else ""])
+
+        print t
+        return True
 
     def getvulns(self, filter=None, count=-1):
         t = PrettyTable(['host','port','pluginName','path','severity','plugin_output'], hrules=ALL)
@@ -71,19 +84,14 @@ class NessusFile(object):
             if abort:
                 break
 
-            if self.doc.getpath(elem) == '/ReportItem':
+            if not self.printvuln(elem):
                 continue
-
-            t = PrettyTable(['host','port','pluginName','severity','plugin_output'])
-            t.add_row([elem.getparent().attrib['name'], elem.attrib['port'], elem.attrib['pluginName'], elem.attrib['severity'], elem.find('plugin_output').text if elem.find('plugin_output') is not None else ""])
-
-            print t
 
             done = False
             while not done:
                 done = True
 
-                print "(n)ext,(r)emove,remove (a)ll,(h)elp,(q)uit => ",
+                sys.stdout.write("(n)ext,(r)emove,remove (a)ll,(h)elp,(s)ummary,(q)uit => ")
                 cmd = readchar.readkey()
                 print cmd
 
@@ -100,11 +108,12 @@ class NessusFile(object):
                         properties.remove('host')
                     for property in properties:
                         filter[property] = elem.attrib[property]
-                    print "Removed %d matching findings" % self.removevuln(filter=filter)
+                    print "Removed %d matching findings" % self.removevulns(filter=filter)
                 elif cmd == 'h':
                     print "\nSome help text\n"
-                    print "Press any key to continue"
-                    readchar.readkey()
+                    done = False
+                elif cmd == 's':
+                    self.printsummary()
                     done = False
                 elif cmd == 'q':
                     abort = True
@@ -115,3 +124,27 @@ class NessusFile(object):
 
     def tostring(self):
         return le.tostring(self.doc)
+
+    def save(self, file):
+        with open(file,'w') as f:
+            f.write(self.tostring())
+
+def main():
+    optparser = OptionParser()
+
+    options,args = optparser.parse_args()
+
+    if len(args) != 1:
+        optparser.print_usage()
+        sys.exit(0)
+
+    n = NessusFile(sys.argv[1])
+    n.printsummary()
+    print "\nStarting stepthrough.\n"
+    n.stepthrough()
+
+    f = raw_input("\nStepthrough done. File to write output to: ")
+    n.save(f)
+
+if __name__ == "__main__":
+    main()
