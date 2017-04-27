@@ -3,21 +3,21 @@ A simple class for editing items in a Nessus report file
 
 Useful when you have a .nessus report file with lots of findings that you want to filter out (false positives, irrelevant informational findings etc). It comes with its own interactive shell for selectively removing findings.
 
-# Dependencies
+## Dependencies
 nessusedit depends on the following modules to work:
 - prettytable
 - readchar
 - lxml
 
-# Usage
-Initialize it like this:
+## Usage
+### Initialization
 ```python
 from nessusedit import NessusFile
 
 n = NessusFile('somefile.nessus')
 ```
 
-Useful methods:
+### Useful methods
 - `vulns` returns a list of occurring vulnerabilities and a count grouped by vulnerability name
 - `printvulns` prints above data as a pretty table
 - `getvulns` returns all vulnerabilities matching the argument dictionary `filter` (or all if empty)
