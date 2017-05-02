@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
+from pprint import pprint
 from prettytable import PrettyTable, ALL
 import lxml.etree as le
 import readchar
@@ -57,8 +58,9 @@ class NessusFile(object):
 
         print t
 
-    def buildfilter(self, filter, mode='include'):
+    def buildfilter(self, filter, boolop='and', mode='include'):
         filterstr = ''
+        boolstr = ' %s ' % boolop
 
         if not filter:
             filterstr = '*'
@@ -69,9 +71,9 @@ class NessusFile(object):
                 filterstr = '../@name="%s"' % filter.pop('host')
 
                 if filter:
-                    filterstr += ' and '
+                    filterstr += boolstr
 
-            filterstr += ' and '.join(['@%s="%s"' % (k, v) for k,v in filter.iteritems()])
+            filterstr += boolstr.join(['@%s="%s"' % (k, v) for k,v in filter.iteritems()])
 
         if mode == 'include':
             return filterstr
