@@ -1,9 +1,9 @@
-from collections import defaultdict
+#!/usr/bin/env python
+
+from argparse import ArgumentParser
 from prettytable import PrettyTable, ALL
-import readchar
 import lxml.etree as le
-from optparse import OptionParser
-from pprint import pprint
+import readchar
 import sys
 
 class NessusFile(object):
@@ -17,18 +17,22 @@ class NessusFile(object):
         return doc
 
     def vulns(self, filter=None):
-        vulns = defaultdict(int)
+        vulns = {}
 
         for elem in self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter)):
-            vulns[elem.attrib['pluginName']] += 1
+            if not elem.attrib['pluginName'] in vulns:
+                vulns[elem.attrib['pluginName']] = {"severity":elem.attrib['severity'], \
+                                                    "count":1}
+            else:
+                vulns[elem.attrib['pluginName']]['count'] += 1
 
-        return sorted(vulns.items(), key=lambda(k,v): v, reverse=True)
+        return sorted(vulns.items(), key=lambda(k,v): (v['severity'], v['count']), reverse=True)
 
     def printsummary(self, filter=None):
-        t = PrettyTable(['pluginName','count'])
+        t = PrettyTable(['pluginName','severity','count'])
 
         for k,v in self.vulns(filter):
-            t.add_row([k,v])
+            t.add_row([k, v['severity'], v['count']])
 
         print t
 
@@ -53,7 +57,7 @@ class NessusFile(object):
 
         print t
 
-    def buildfilter(self, filter):
+    def buildfilter(self, filter, mode='include'):
         filterstr = ''
 
         if not filter:
@@ -69,10 +73,15 @@ class NessusFile(object):
 
             filterstr += ' and '.join(['@%s="%s"' % (k, v) for k,v in filter.iteritems()])
 
-        return filterstr
+        if mode == 'include':
+            return filterstr
+        elif mode == 'exclude':
+            return 'not(%s)' % filterstr
+        else:
+            return False
 
-    def removevulns(self, filter=None, path=None):
-        for count,elem in enumerate(self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter)), 1):
+    def filtervulns(self, filter=None, mode='include'):
+        for count,elem in enumerate(self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter, mode)), 1):
             elem.getparent().remove(elem)
 
         return count if count else 0
@@ -108,7 +117,7 @@ class NessusFile(object):
                         properties.remove('host')
                     for property in properties:
                         filter[property] = elem.attrib[property]
-                    print "Removed %d matching findings" % self.removevulns(filter=filter)
+                    print "Removed %d matching findings" % self.filtervulns(filter=filter)
                 elif cmd == 'h':
                     print "\nSome help text\n"
                     done = False
@@ -126,25 +135,52 @@ class NessusFile(object):
         return le.tostring(self.doc)
 
     def save(self, file):
-        with open(file,'w') as f:
-            f.write(self.tostring())
+        if file == '-':
+            f = sys.stdout
+        else:
+            f = open(file,'w')
+
+        f.write(self.tostring() + '\n')
+        f.close()
+
 
 def main():
-    optparser = OptionParser()
+    argparser = ArgumentParser()
+    argparser.add_argument('-r','--remove', help='Findings to remove')
+    argparser.add_argument('-k','--keep', help='Findings to keep')
+    argparser.add_argument('-s','--summary', help="Print a summary of findings", action='store_true')
+    argparser.add_argument('-o','--output', help="File to write output to")
+    argparser.add_argument('nessusfile', help='Nessus report file to read')
+    args = argparser.parse_args()
 
-    options,args = optparser.parse_args()
-
-    if len(args) != 1:
+    if not args.nessusfile:
         optparser.print_usage()
         sys.exit(0)
 
-    n = NessusFile(sys.argv[1])
-    n.printsummary()
-    print "\nStarting stepthrough.\n"
-    n.stepthrough()
+    n = NessusFile(args.nessusfile)
 
-    f = raw_input("\nStepthrough done. File to write output to: ")
-    n.save(f)
+    if args.summary:
+        n.printsummary()
+        sys.exit(0)
+    elif args.remove:
+        filter = dict([args.remove.split('=')])
+        n.filtervulns(filter,mode='include')
+    elif args.keep:
+        filter = dict([args.keep.split('=')])
+        n.filtervulns(filter,mode='exclude')
+    else:
+        n.printsummary()
+        print "\nPress any key to continue...\n"
+        readchar.readkey()
+        print "\nStarting stepthrough.\n"
+        n.stepthrough()
+
+    if args.output:
+        n.save(args.output)
+    else:
+        f = raw_input("\nFile to write output to: ")
+        n.save(f)
+
 
 if __name__ == "__main__":
     main()
