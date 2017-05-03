@@ -9,6 +9,7 @@ import sys
 class NessusFile(object):
     def __init__(self, nessusfile):
         self.doc = self.loadnessusfile(nessusfile)
+        self.filter = '*'
 
     def loadnessusfile(self, nf):
         with open(nf) as f:
@@ -19,20 +20,23 @@ class NessusFile(object):
     def vulns(self, filter=None):
         vulns = {}
 
-        for elem in self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter)):
+        for elem in self.getvulns():
             if not elem.attrib['pluginName'] in vulns:
                 vulns[elem.attrib['pluginName']] = {"severity":elem.attrib['severity'], \
-                                                    "count":1}
+                                                    "count":1, \
+                                                    "hosts":[elem.getparent().attrib['name']]}
             else:
                 vulns[elem.attrib['pluginName']]['count'] += 1
+                if elem.getparent().attrib['name'] not in vulns[elem.attrib['pluginName']]['hosts']:
+                    vulns[elem.attrib['pluginName']]['hosts'].append(elem.getparent().attrib['name'])
 
         return sorted(vulns.items(), key=lambda(k,v): (v['severity'], v['count']), reverse=True)
 
     def printsummary(self, filter=None):
-        t = PrettyTable(['pluginName','severity','count'])
+        t = PrettyTable(['pluginName','severity','count','hosts'], hrules=ALL)
 
         for k,v in self.vulns(filter):
-            t.add_row([k, v['severity'], v['count']])
+            t.add_row([k, v['severity'], v['count'], '\n'.join(v['hosts'])])
 
         print t
 
@@ -46,18 +50,10 @@ class NessusFile(object):
         print t
         return True
 
-    def getvulns(self, filter=None, count=-1):
-        t = PrettyTable(['host','port','pluginName','path','severity','plugin_output'], hrules=ALL)
+    def getvulns(self):
+        return self.doc.xpath("//ReportItem[%s]" % self.filter, namespaces={"re": "http://exslt.org/regular-expressions"})
 
-        for index,elem in enumerate(self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter))):
-            if index == count:
-                break
-
-            t.add_row([elem.getparent().attrib['name'], elem.attrib['port'], elem.attrib['pluginName'], self.doc.getpath(elem), elem.attrib['severity'], elem.find('plugin_output').text if elem.find('plugin_output') is not None else ""])
-
-        print t
-
-    def buildfilter(self, filter, boolop='and', mode='include'):
+    def setfilter(self, filter, boolop='and', mode='include'):
         filterstr = ''
         boolstr = ' %s ' % boolop
 
@@ -71,21 +67,33 @@ class NessusFile(object):
             hostfilters = [i.values()[0] for i in filter if 'host' in i]
             if hostfilters:
                 filter = [i for i in filter if 'host' not in i]
-                filterlist.append(['../@name="%s"' % f for f in hostfilters])
 
-            filterlist += ['@%s="%s"' % i.items()[0] for i in filter]
+                for i,f in enumerate(hostfilters):
+                    if '*' in f:
+                        f = f.replace('.','\.')
+                        f = f.replace('*','.+')
+                        filterlist.append('re:match(../@name,"%s")' % f)
+                    else:
+                        filterlist.append('../@name="%s"' % f)
+
+            for f in filter:
+                if '*' in f.values()[0]:
+                    f[f.keys()[0]] = f[f.keys()[0]].replace('.','\.')
+                    f[f.keys()[0]] = f[f.keys()[0]].replace('*','.+')
+                    filterlist.append('re:match(@%s,"%s")' % f.items()[0])
+                else:
+                    filterlist.append('@%s="%s"' % f.items()[0])
+
             filterstr = boolstr.join(filterlist)
 
         if mode == 'include':
-            return filterstr
+            self.filter = filterstr
         elif mode == 'exclude':
-            return 'not(%s)' % filterstr
-        else:
-            return False
+            self.filter = 'not(%s)' % filterstr
 
-    def filtervulns(self, filter=None, boolop='and', mode='include'):
+    def filtervulns(self, mode='include'):
         count = 0
-        for count,elem in enumerate(self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter, boolop=boolop, mode=mode)), 1):
+        for count,elem in enumerate(self.getvulns(), 1):
             elem.getparent().remove(elem)
 
         return count
@@ -93,7 +101,7 @@ class NessusFile(object):
     def stepthrough(self, filter=None):
         abort = False
 
-        for elem in self.doc.xpath("//ReportHost/ReportItem[%s]" % self.buildfilter(filter)):
+        for elem in self.getvulns():
             if abort:
                 break
 
@@ -153,13 +161,15 @@ def main():
                                epilog='Filters are input as comma-separated key-value pairs, so for instance ' \
                                       'to keep all\nfindings that have severity 4 or 5, or come from the host "host1",' \
                                       'do the following:\n\n' \
-                                      'nessusedit.py -k -f severity=4,severity=5,host=host1 -o newfile.nessus oldfile.nessus',
+                                      'nessusedit.py -k -f severity=4,severity=5,host=host1 -o newfile.nessus oldfile.nessus\n\n' \
+                                      'You can also negate a filter using "!=" (for instance severity!=0)',
                                formatter_class=RawTextHelpFormatter)
-    argparser.add_argument('-r','--remove', help='Remove findings matched by filter', action='store_true')
-    argparser.add_argument('-k','--keep', help='Keep (only) findings matched by filter', action='store_true')
-    argparser.add_argument('-s','--summary', help="Print a summary of findings", action='store_true')
+    argparser.add_argument('-b','--boolop', help="Boolean operator to apply between filter terms. Default is 'or'", default='or')
     argparser.add_argument('-f','--filter', help="Filters to apply")
+    argparser.add_argument('-k','--keep', help='Keep (only) findings matched by filter', action='store_true')
+    argparser.add_argument('-r','--remove', help='Remove findings matched by filter', action='store_true')
     argparser.add_argument('-o','--output', help="File to write output to")
+    argparser.add_argument('-s','--summary', help="Print a summary of findings", action='store_true')
     argparser.add_argument('nessusfile', help='Nessus report file to read')
     args = argparser.parse_args()
 
@@ -170,7 +180,7 @@ def main():
     n = NessusFile(args.nessusfile)
 
     if args.filter:
-        filter = [dict([arg.split('=')]) for arg in args.filter.split(',')]
+        n.setfilter(filter=[dict([arg.split('=')]) for arg in args.filter.split(',')],boolop=args.boolop)
     else:
         filter = None
 
@@ -178,9 +188,9 @@ def main():
         n.printsummary()
         sys.exit(0)
     elif args.remove:
-        n.filtervulns(filter,mode='include',boolop='or')
+        n.filtervulns(mode='include')
     elif args.keep:
-        n.filtervulns(filter,mode='exclude',boolop='or')
+        n.filtervulns(mode='exclude')
     else:
         n.printsummary()
         print "\nPress any key to continue...\n"
