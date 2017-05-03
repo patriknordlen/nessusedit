@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
-from pprint import pprint
 from prettytable import PrettyTable, ALL
 import lxml.etree as le
 import readchar
@@ -65,15 +64,17 @@ class NessusFile(object):
         if not filter:
             filterstr = '*'
         else:
+            filterlist = []
+
             # The 'host' field is a special case as it belongs to the parent node rather
             # than the actual ReportItem node. This semi-ugly solution addresses this.
-            if 'host' in filter.keys():
-                filterstr = '../@name="%s"' % filter.pop('host')
+            hostfilters = [i.values()[0] for i in filter if 'host' in i]
+            if hostfilters:
+                filter = [i for i in filter if 'host' not in i]
+                filterlist.append(['../@name="%s"' % f for f in hostfilters])
 
-                if filter:
-                    filterstr += boolstr
-
-            filterstr += boolstr.join(['@%s="%s"' % (k, v) for k,v in filter.iteritems()])
+            filterlist += ['@%s="%s"' % i.items()[0] for i in filter]
+            filterstr = boolstr.join(filterlist)
 
         if mode == 'include':
             return filterstr
@@ -82,11 +83,12 @@ class NessusFile(object):
         else:
             return False
 
-    def filtervulns(self, filter=None, mode='include'):
-        for count,elem in enumerate(self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter, mode)), 1):
+    def filtervulns(self, filter=None, boolop='and', mode='include'):
+        count = 0
+        for count,elem in enumerate(self.doc.xpath("//ReportItem[%s]" % self.buildfilter(filter, boolop=boolop, mode=mode)), 1):
             elem.getparent().remove(elem)
 
-        return count if count else 0
+        return count
 
     def stepthrough(self, filter=None):
         abort = False
@@ -148,9 +150,10 @@ class NessusFile(object):
 
 def main():
     argparser = ArgumentParser()
-    argparser.add_argument('-r','--remove', help='Findings to remove')
-    argparser.add_argument('-k','--keep', help='Findings to keep')
+    argparser.add_argument('-r','--remove', help='Remove findings matched by filter', action='store_true')
+    argparser.add_argument('-k','--keep', help='Keep (only) findings matched by filter', action='store_true')
     argparser.add_argument('-s','--summary', help="Print a summary of findings", action='store_true')
+    argparser.add_argument('-f','--filter', help="Filters to apply")
     argparser.add_argument('-o','--output', help="File to write output to")
     argparser.add_argument('nessusfile', help='Nessus report file to read')
     args = argparser.parse_args()
@@ -161,15 +164,18 @@ def main():
 
     n = NessusFile(args.nessusfile)
 
+    if args.filter:
+        filter = [dict([arg.split('=')]) for arg in args.filter.split(',')]
+    else:
+        filter = None
+
     if args.summary:
         n.printsummary()
         sys.exit(0)
     elif args.remove:
-        filter = dict([args.remove.split('=')])
-        n.filtervulns(filter,mode='include')
+        n.filtervulns(filter,mode='include',boolop='or')
     elif args.keep:
-        filter = dict([args.keep.split('=')])
-        n.filtervulns(filter,mode='exclude')
+        n.filtervulns(filter,mode='exclude',boolop='or')
     else:
         n.printsummary()
         print "\nPress any key to continue...\n"
