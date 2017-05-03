@@ -1,7 +1,11 @@
 # nessusedit
-A simple class for editing items in a Nessus report file
+A simple script for editing items in a Nessus report file. Comes with its own
+class for handling all report file interaction.
 
-Useful when you have a .nessus report file with lots of findings that you want to filter out (false positives, irrelevant informational findings etc). It comes with its own interactive shell for selectively removing findings.
+Useful when you have a .nessus report file with lots of findings that you want
+to filter out (false positives, irrelevant informational findings etc). It can be used
+either via CLI, or as a Python module that you import, or as an interactive shell
+for selectively removing findings.
 
 ## Dependencies
 nessusedit depends on the following non-built in modules to work:
@@ -10,7 +14,34 @@ nessusedit depends on the following non-built in modules to work:
 - `lxml`
 
 ## Usage
-### Initialization
+To use nessusedit from the CLI, refer to the usage information included in the script:
+```
+usage: nessusedit.py [-h] [-r] [-k] [-s] [-f FILTER] [-o OUTPUT] nessusfile
+
+A script for viewing and filtering Nessus report files.
+
+positional arguments:
+  nessusfile            Nessus report file to read
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -r, --remove          Remove findings matched by filter
+  -k, --keep            Keep (only) findings matched by filter
+  -s, --summary         Print a summary of findings
+  -f FILTER, --filter FILTER
+                        Filters to apply
+  -o OUTPUT, --output OUTPUT
+                        File to write output to
+
+Filters are input as comma-separated key-value pairs, so for instance to keep all
+findings that have severity 4 or 5, or come from the host "host1",do the following:
+
+nessusedit.py -k -f severity=4,severity=5,host=host1 -o newfile.nessus oldfile.nessus
+```
+
+
+
+### Using nessusedit as a Python module
 ```python
 from nessusedit import NessusFile
 
@@ -18,10 +49,10 @@ n = NessusFile('somefile.nessus')
 ```
 
 ### Useful methods
-- `vulns` returns a list of occurring vulnerabilities and a count grouped by vulnerability name
-- `printvulns` prints above data as a pretty table
-- `getvulns` returns all vulnerabilities matching the argument dictionary `filter` (or all if empty)
-- `removevulns` removes any vulnerabilities matching the argument dictionary `filter` (or all if empty)
+- `vulns` returns a list of occurring vulnerabilities and a count grouped by vulnerability name, ordered by severity
+- `printsummary` prints above data as a pretty table
+- `getvulns` returns all vulnerabilities matching the argument list of dictionaries `filter` (or all if empty)
+- `filtervulns` removes any vulnerabilities matching the argument list of dictionaries `filter` (or all if empty)
 - `stepthrough` provides an interactive 'shell' that can be used for stepping through all vulnerabilities and selectively removing them
 
 ### Run standalone

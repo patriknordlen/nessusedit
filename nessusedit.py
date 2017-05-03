@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 from prettytable import PrettyTable, ALL
 import lxml.etree as le
 import readchar
@@ -149,7 +149,12 @@ class NessusFile(object):
 
 
 def main():
-    argparser = ArgumentParser()
+    argparser = ArgumentParser(description='A script for viewing and filtering Nessus report files.', \
+                               epilog='Filters are input as comma-separated key-value pairs, so for instance ' \
+                                      'to keep all\nfindings that have severity 4 or 5, or come from the host "host1",' \
+                                      'do the following:\n\n' \
+                                      'nessusedit.py -k -f severity=4,severity=5,host=host1 -o newfile.nessus oldfile.nessus',
+                               formatter_class=RawTextHelpFormatter)
     argparser.add_argument('-r','--remove', help='Remove findings matched by filter', action='store_true')
     argparser.add_argument('-k','--keep', help='Keep (only) findings matched by filter', action='store_true')
     argparser.add_argument('-s','--summary', help="Print a summary of findings", action='store_true')
