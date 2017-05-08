@@ -16,7 +16,8 @@ nessusedit depends on the following non-built in modules to work:
 ## Usage
 To use nessusedit from the CLI, refer to the usage information included in the script:
 ```
-usage: nessusedit.py [-h] [-r] [-k] [-s] [-f FILTER] [-o OUTPUT] nessusfile
+usage: nessusedit.py [-h] [-b BOOLOP] [-f FILTER] [-k] [-r] [-o OUTPUT] [-s]
+                     nessusfile
 
 A script for viewing and filtering Nessus report files.
 
@@ -25,18 +26,22 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -r, --remove          Remove findings matched by filter
-  -k, --keep            Keep (only) findings matched by filter
-  -s, --summary         Print a summary of findings
+  -b BOOLOP, --boolop BOOLOP
+                        Boolean operator to apply between filter terms. Default is 'or'
   -f FILTER, --filter FILTER
                         Filters to apply
+  -k, --keep            Keep (only) findings matched by filter
+  -r, --remove          Remove findings matched by filter
   -o OUTPUT, --output OUTPUT
                         File to write output to
+  -s, --summary         Print a summary of findings
 
 Filters are input as comma-separated key-value pairs, so for instance to keep all
 findings that have severity 4 or 5, or come from the host "host1",do the following:
 
 nessusedit.py -k -f severity=4,severity=5,host=host1 -o newfile.nessus oldfile.nessus
+
+You can also negate a filter using "!=" (for instance severity!=0)
 ```
 
 
