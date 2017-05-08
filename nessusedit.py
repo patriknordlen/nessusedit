@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser, RawTextHelpFormatter
+from pprint import pprint
 from prettytable import PrettyTable, ALL
 import lxml.etree as le
 import readchar
@@ -35,10 +36,12 @@ class NessusFile(object):
     def printsummary(self, filter=None):
         t = PrettyTable(['pluginName','severity','count','hosts'], hrules=ALL)
 
-        for k,v in self.vulns(filter):
-            t.add_row([k, v['severity'], v['count'], '\n'.join(v['hosts'])])
+        if self.vulns(filter):
+            for k,v in self.vulns(filter):
+                t.add_row([k, v['severity'], v['count'], '\n'.join(v['hosts'])])
 
-        print t
+            print t
+
 
     def printvuln(self, elem):
         if self.doc.getpath(elem) == '/ReportItem':
@@ -62,27 +65,30 @@ class NessusFile(object):
         else:
             filterlist = []
 
-            # The 'host' field is a special case as it belongs to the parent node rather
-            # than the actual ReportItem node. This semi-ugly solution addresses this.
-            hostfilters = [i.values()[0] for i in filter if 'host' in i]
-            if hostfilters:
-                filter = [i for i in filter if 'host' not in i]
-
-                for i,f in enumerate(hostfilters):
-                    if '*' in f:
-                        f = f.replace('.','\.')
-                        f = f.replace('*','.+')
-                        filterlist.append('re:match(../@name,"%s")' % f)
-                    else:
-                        filterlist.append('../@name="%s"' % f)
-
             for f in filter:
-                if '*' in f.values()[0]:
-                    f[f.keys()[0]] = f[f.keys()[0]].replace('.','\.')
-                    f[f.keys()[0]] = f[f.keys()[0]].replace('*','.+')
-                    filterlist.append('re:match(@%s,"%s")' % f.items()[0])
+                k,v = f.items()[0]
+
+                negate = False
+                if k.endswith('!'):
+                    k = k.replace('!','')
+                    negate = True
+
+                if k == 'host':
+                    node = '../@name'
                 else:
-                    filterlist.append('@%s="%s"' % f.items()[0])
+                    node = '@%s' % k
+
+                if '*' in v:
+                    v = v.replace('.','\.')
+                    v = v.replace('*','.*')
+                    fitem = 're:match(%s,"^%s$")' % (node,v)
+                else:
+                    fitem = '%s="%s"' % (node,v)
+
+                if negate:
+                    fitem = 'not(%s)' % fitem
+
+                filterlist.append(fitem)
 
             filterstr = boolstr.join(filterlist)
 
@@ -91,7 +97,7 @@ class NessusFile(object):
         elif mode == 'exclude':
             self.filter = 'not(%s)' % filterstr
 
-    def filtervulns(self, mode='include'):
+    def filtervulns(self):
         count = 0
         for count,elem in enumerate(self.getvulns(), 1):
             elem.getparent().remove(elem)
@@ -180,17 +186,20 @@ def main():
     n = NessusFile(args.nessusfile)
 
     if args.filter:
-        n.setfilter(filter=[dict([arg.split('=')]) for arg in args.filter.split(',')],boolop=args.boolop)
+        if args.keep:
+            mode = 'exclude'
+        else:
+            mode = 'include'
+
+        n.setfilter(filter=[dict([arg.split('=')]) for arg in args.filter.split(',')],boolop=args.boolop,mode=mode)
     else:
         filter = None
 
     if args.summary:
         n.printsummary()
         sys.exit(0)
-    elif args.remove:
-        n.filtervulns(mode='include')
-    elif args.keep:
-        n.filtervulns(mode='exclude')
+    elif args.remove or args.keep:
+        n.filtervulns()
     else:
         n.printsummary()
         print "\nPress any key to continue...\n"
