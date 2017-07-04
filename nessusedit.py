@@ -112,7 +112,8 @@ class NessusFile(object):
     def stepthrough(self, filter=None):
         abort = False
 
-        for elem in self.getvulns():
+        vulncount = len(self.getvulns())
+        for count,elem in enumerate(self.getvulns(), 1):
             if abort:
                 break
 
@@ -123,11 +124,11 @@ class NessusFile(object):
             while not done:
                 done = True
 
-                sys.stdout.write("(n)ext,(r)emove,remove (a)ll,(h)elp,(s)ummary,(q)uit => ")
+                sys.stdout.write("%d/%d (n)ext,(r)emove,remove (a)ll,(h)elp,(s)ummary,(q)uit => " % (count, vulncount))
                 cmd = readchar.readkey()
                 print cmd
 
-                if cmd == 'n':
+                if cmd == 'n' or cmd == '\r':
                     done = True
                 elif cmd == 'r':
                     elem.getparent().remove(elem)
@@ -140,7 +141,7 @@ class NessusFile(object):
                         properties.remove('host')
                     for property in properties:
                         filter[property] = elem.attrib[property]
-                    print "Removed %d matching findings" % self.filtervulns(filter=filter)
+                    print "Removed %d matching findings" % self.filtervulns(self.createfilter([filter]))
                 elif cmd == 'h':
                     print "\nSome help text\n"
                     done = False
