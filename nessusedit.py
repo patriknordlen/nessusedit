@@ -18,13 +18,14 @@ class NessusFile(object):
 
         return doc
 
-    def vulns(self, filter=None):
+    def vulns(self):
         vulns = {}
 
         for elem in self.getvulns():
             if not elem.attrib['pluginName'] in vulns:
-                vulns[elem.attrib['pluginName']] = {"severity":elem.attrib['severity'], \
-                                                    "count":1, \
+                vulns[elem.attrib['pluginName']] = {"severity":elem.attrib['severity'],
+                                                    "count":1,
+                                                    "port":elem.attrib['port'],
                                                     "hosts":[elem.getparent().attrib['name']]}
             else:
                 vulns[elem.attrib['pluginName']]['count'] += 1
@@ -34,11 +35,11 @@ class NessusFile(object):
         return sorted(vulns.items(), key=lambda(k,v): (v['severity'], v['count']), reverse=True)
 
     def printsummary(self, filter=None):
-        t = PrettyTable(['pluginName','severity','count','hosts'], hrules=ALL)
+        t = PrettyTable(['pluginName','port','severity','count','hosts'], hrules=ALL)
 
-        if self.vulns(filter):
-            for k,v in self.vulns(filter):
-                t.add_row([k, v['severity'], v['count'], '\n'.join(v['hosts'])])
+        if self.vulns():
+            for k,v in self.vulns():
+                t.add_row([k, v['port'], v['severity'], v['count'], '\n'.join(v['hosts'])])
 
             print t
 
