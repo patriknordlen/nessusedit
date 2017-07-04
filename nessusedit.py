@@ -188,6 +188,7 @@ def main():
     argparser.add_argument('-k','--keep', help='Keep (only) findings matched by filter', action='store_true')
     argparser.add_argument('-r','--remove', help='Remove findings matched by filter', action='store_true')
     argparser.add_argument('-o','--output', help="File to write output to")
+    argparser.add_argument('-n','--no-output', help="Don't write output to file", action='store_true')
     argparser.add_argument('-s','--summary', help="Print a summary of findings", action='store_true')
     argparser.add_argument('nessusfile', help='Nessus report file to read')
     args = argparser.parse_args()
@@ -220,11 +221,12 @@ def main():
         print "\nStarting stepthrough.\n"
         n.stepthrough()
 
-    if args.output:
-        n.save(args.output)
-    else:
-        f = raw_input("\nFile to write output to: ")
-        n.save(f)
+    if not args.no_output:
+        if args.output:
+            n.save(args.output)
+        else:
+            f = raw_input("\nFile to write output to: ")
+            n.save(f)
 
 
 if __name__ == "__main__":
