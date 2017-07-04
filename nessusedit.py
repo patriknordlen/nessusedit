@@ -54,10 +54,14 @@ class NessusFile(object):
         print t
         return True
 
-    def getvulns(self):
-        return self.doc.xpath("//ReportItem[%s]" % self.filter, namespaces={"re": "http://exslt.org/regular-expressions"})
+    def getvulns(self, filter=None):
+        f = filter or self.filter
+        return self.doc.xpath("//ReportItem[%s]" % f, namespaces={"re": "http://exslt.org/regular-expressions"})
 
-    def setfilter(self, filter, boolop='and', mode='include'):
+    def setfilter(self, filter, boolop=None, mode=None):
+        self.filter = self.createfilter(filter)
+
+    def createfilter(self, filter, boolop='and', mode='include'):
         filterstr = ''
         boolstr = ' %s ' % boolop
 
@@ -94,13 +98,13 @@ class NessusFile(object):
             filterstr = boolstr.join(filterlist)
 
         if mode == 'include':
-            self.filter = filterstr
+            return filterstr
         elif mode == 'exclude':
-            self.filter = 'not(%s)' % filterstr
+            return 'not(%s)' % filterstr
 
-    def filtervulns(self):
+    def filtervulns(self, filter=None):
         count = 0
-        for count,elem in enumerate(self.getvulns(), 1):
+        for count,elem in enumerate(self.getvulns(filter), 1):
             elem.getparent().remove(elem)
 
         return count
