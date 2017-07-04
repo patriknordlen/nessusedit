@@ -3,6 +3,7 @@
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pprint import pprint
 from prettytable import PrettyTable, ALL
+from textwrap import fill
 import lxml.etree as le
 import readchar
 import sys
@@ -48,8 +49,14 @@ class NessusFile(object):
         if self.doc.getpath(elem) == '/ReportItem':
             return False
 
-        t = PrettyTable(['host','port','pluginName','severity','plugin_output'])
-        t.add_row([elem.getparent().attrib['name'], elem.attrib['port'], elem.attrib['pluginName'], elem.attrib['severity'], elem.find('plugin_output').text if elem.find('plugin_output') is not None else ""])
+        t = PrettyTable(['host','port','pluginName','severity','plugin_output', 'synopsis', 'solution'])
+        t.add_row([elem.getparent().attrib['name'],
+                   elem.attrib['port'],
+                   fill(elem.attrib['pluginName'], width=70),
+                   elem.attrib['severity'],
+                   fill(elem.findtext('plugin_output') or "", width=70),
+                   fill(elem.findtext('synopsis') or "", width=70),
+                   fill(elem.findtext('solution') or "", width=70)])
 
         print t
         return True
