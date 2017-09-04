@@ -52,11 +52,11 @@ class NessusFile(object):
         t = PrettyTable(['host','port','pluginName','severity','plugin_output', 'synopsis', 'solution'])
         t.add_row([elem.getparent().attrib['name'],
                    elem.attrib['port'],
-                   fill(elem.attrib['pluginName'], width=70),
+                   fill(elem.attrib['pluginName'], width=60),
                    elem.attrib['severity'],
-                   fill(elem.findtext('plugin_output') or "", width=70),
-                   fill(elem.findtext('synopsis') or "", width=70),
-                   fill(elem.findtext('solution') or "", width=70)])
+                   fill(elem.findtext('plugin_output') or "", width=60),
+                   fill(elem.findtext('synopsis') or "", width=60),
+                   fill(elem.findtext('solution') or "", width=60)])
 
         print t
         return True
@@ -120,9 +120,13 @@ class NessusFile(object):
         abort = False
 
         vulncount = len(self.getvulns())
+        ok_findings = []
         for count,elem in enumerate(self.getvulns(), 1):
             if abort:
                 break
+
+            if elem.attrib['pluginName'] in ok_findings:
+                continue
 
             if not self.printvuln(elem):
                 continue
@@ -131,24 +135,35 @@ class NessusFile(object):
             while not done:
                 done = True
 
-                sys.stdout.write("%d/%d (n)ext,(r)emove,remove (a)ll,(h)elp,(s)ummary,(q)uit => " % (count, vulncount))
+                sys.stdout.write("%d/%d (a)ccept,(A)ccept all,(r)emove,(R)emove all,(h)elp,(s)ummary,(q)uit => " % (count, vulncount))
                 cmd = readchar.readkey()
                 print cmd
 
-                if cmd == 'n' or cmd == '\r':
+                if cmd == 'a' or cmd == '\r':
                     done = True
+                elif cmd == 'A':
+                    ok_findings.append(elem.attrib['pluginName'])
+                    print "Accepting all findings with pluginName '%s'." % elem.attrib['pluginName']
                 elif cmd == 'r':
                     elem.getparent().remove(elem)
                     print "Finding removed"
-                elif cmd == 'a':
+                elif cmd == 'R':
                     filter = {}
-                    properties = raw_input("Remove all based on which properties? ").split(",")
-                    if 'host' in properties:
-                        filter['host'] = elem.getparent().attrib['name']
-                        properties.remove('host')
-                    for property in properties:
-                        filter[property] = elem.attrib[property]
-                    print "Removed %d matching findings" % self.filtervulns(self.createfilter([filter]))
+                    properties = raw_input("Remove all based on which properties [pluginName]? ").split(",")
+                    try:
+                        if properties == ['']:
+                            properties = ['pluginName']
+                        elif 'host' in properties:
+                            filter['host'] = elem.getparent().attrib['name']
+                            properties.remove('host')
+
+                        for property in properties:
+                                filter[property] = elem.attrib[property]
+                            
+                        print "Removed %d matching findings" % self.filtervulns(self.createfilter([filter]))
+                    except KeyError:
+                        print "Invalid property name"
+                        done = False
                 elif cmd == 'h':
                     print "\nSome help text\n"
                     done = False
@@ -224,6 +239,7 @@ def main():
     if not args.no_output:
         if args.output:
             n.save(args.output)
+            print "Output written to '%s'." % args.output
         else:
             f = raw_input("\nFile to write output to: ")
             n.save(f)
