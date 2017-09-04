@@ -66,7 +66,7 @@ class NessusFile(object):
         return self.doc.xpath("//ReportItem[%s]" % f, namespaces={"re": "http://exslt.org/regular-expressions"})
 
     def setfilter(self, filter, boolop=None, mode=None):
-        self.filter = self.createfilter(filter)
+        self.filter = self.createfilter(filter, boolop, mode)
 
     def createfilter(self, filter, boolop='and', mode='include'):
         filterstr = ''
